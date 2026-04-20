@@ -66,7 +66,7 @@ function PersonalDashboard({ user }) {
       {error && <div className="alert alert-error">{error}</div>}
 
       {loading ? (
-        <div className="loading">Loading your performance data...</div>
+        <div className="loading">⏳ Loading your performance data...</div>
       ) : (
         <>
           {/* Stats Cards */}
@@ -75,8 +75,8 @@ function PersonalDashboard({ user }) {
               <div className="stat-icon">📊</div>
               <div className="stat-content">
                 <div className="stat-label">Average Score</div>
-                <div className="stat-value">{data.stats?.averageScore || 0}%</div>
-                <div className="stat-subtext">{data.stats?.totalEntries || 0} entries</div>
+                <div className="stat-value">{data?.stats?.averageScore ?? 0}%</div>
+                <div className="stat-subtext">{data?.stats?.totalEntries ?? 0} entries</div>
               </div>
             </div>
 
@@ -84,7 +84,7 @@ function PersonalDashboard({ user }) {
               <div className="stat-icon">🏆</div>
               <div className="stat-content">
                 <div className="stat-label">Best Score</div>
-                <div className="stat-value">{data.stats?.bestScore || 0}%</div>
+                <div className="stat-value">{data?.stats?.bestScore ?? 0}%</div>
                 <div className="stat-subtext">Highest performance</div>
               </div>
             </div>
@@ -93,7 +93,7 @@ function PersonalDashboard({ user }) {
               <div className="stat-icon">⏱️</div>
               <div className="stat-content">
                 <div className="stat-label">Talk Time</div>
-                <div className="stat-value">{formatTime(data.stats?.totalTalkTime)}</div>
+                <div className="stat-value">{formatTime(data?.stats?.totalTalkTime ?? 0)}</div>
                 <div className="stat-subtext">Total time spent</div>
               </div>
             </div>
@@ -102,7 +102,7 @@ function PersonalDashboard({ user }) {
               <div className="stat-icon">✅</div>
               <div className="stat-content">
                 <div className="stat-label">Logged In</div>
-                <div className="stat-value">{formatTime(data.stats?.totalLoggedInTime)}</div>
+                <div className="stat-value">{formatTime(data?.stats?.totalLoggedInTime ?? 0)}</div>
                 <div className="stat-subtext">Total logged time</div>
               </div>
             </div>
@@ -111,36 +111,43 @@ function PersonalDashboard({ user }) {
           {/* Daily Records */}
           <div className="records-section">
             <h3>📋 Daily Records</h3>
-            {data.data && data.data.length > 0 ? (
+            {Array.isArray(data?.data) && data.data.length > 0 ? (
               <div className="records-list">
-                {data.data.map((record, index) => (
-                  <div key={index} className="record-item">
-                    <div className="record-date">
-                      {new Date(record.date).toLocaleDateString('en-IN', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: '2-digit',
-                      })}
-                    </div>
-                    <div className="record-details">
-                      <div className="record-row">
-                        <span className="label">Performance Score:</span>
-                        <span className="value">{record.performanceScore}%</span>
+                {(data.data || []).map((record, index) => {
+                  // Safe access to record properties
+                  const recordDate = record?.date ? new Date(record.date).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: '2-digit',
+                  }) : 'Unknown date';
+                  
+                  const performanceScore = record?.performanceScore ?? 0;
+                  const talkTime = record?.talkTime ?? 0;
+                  const loggedInTime = record?.loggedInTime ?? 0;
+                  
+                  return (
+                    <div key={index} className="record-item">
+                      <div className="record-date">{recordDate}</div>
+                      <div className="record-details">
+                        <div className="record-row">
+                          <span className="label">Performance Score:</span>
+                          <span className="value">{performanceScore}%</span>
+                        </div>
+                        <div className="record-row">
+                          <span className="label">Talk Time:</span>
+                          <span className="value">{formatTime(talkTime)}</span>
+                        </div>
+                        <div className="record-row">
+                          <span className="label">Logged In:</span>
+                          <span className="value">{formatTime(loggedInTime)}</span>
+                        </div>
                       </div>
-                      <div className="record-row">
-                        <span className="label">Talk Time:</span>
-                        <span className="value">{formatTime(record.talkTime)}</span>
-                      </div>
-                      <div className="record-row">
-                        <span className="label">Logged In:</span>
-                        <span className="value">{formatTime(record.loggedInTime)}</span>
+                      <div className={`score-badge ${performanceScore >= 25 ? 'good' : 'poor'}`}>
+                        {performanceScore}%
                       </div>
                     </div>
-                    <div className={`score-badge ${record.performanceScore >= 25 ? 'good' : 'poor'}`}>
-                      {record.performanceScore}%
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="no-data">No data available for this period</p>

@@ -22,34 +22,79 @@ function ManagerDashboard() {
     setLoading(true);
     try {
       const response = await api.get('/api/v1/performance/top-performers?limit=1000');
-      const employees = response.data.data || [];
+      // ✅ PRODUCTION-SAFE: Multiple layers of fallback for undefined data
+      const employees = Array.isArray(response?.data?.data) ? response.data.data : [];
       
-      // Deduplicate and sort by score
+      if (employees.length === 0) {
+        // ✅ Handle empty data gracefully
+        setAllEmployees([]);
+        setTopPerformers([]);
+        setStats({
+          totalEmployees: 0,
+          totalUploaded: 0,
+          avgScore: 0,
+        });
+        return;
+      }
+
+      // ✅ Deduplicate with safe property access
       const unique = Array.from(
         employees.reduce((map, emp) => {
-          const existing = map.get(emp.name);
-          if (!existing || emp.performanceScore > existing.performanceScore) {
-            map.set(emp.name, emp);
+          if (!emp || typeof emp !== 'object') return map; // ✅ Skip invalid entries
+          const empName = emp?.name;
+          if (!empName) return map; // ✅ Skip if no name
+          
+          const existing = map.get(empName);
+          const currentScore = parseFloat(emp?.performanceScore ?? 0);
+          const existingScore = parseFloat(existing?.performanceScore ?? 0);
+          
+          if (!existing || currentScore > existingScore) {
+            map.set(empName, emp);
           }
           return map;
         }, new Map()).values()
-      ).sort((a, b) => b.performanceScore - a.performanceScore);
+      ).sort((a, b) => {
+        const scoreA = parseFloat(a?.performanceScore ?? 0);
+        const scoreB = parseFloat(b?.performanceScore ?? 0);
+        return scoreB - scoreA;
+      });
 
       setAllEmployees(unique);
-      setTopPerformers(unique.slice(0, 5));
+      setTopPerformers(unique?.slice(0, 5) ?? []);
 
-      // Calculate stats
-      if (unique.length > 0) {
-        const avgScore = (unique.reduce((sum, emp) => sum + emp.performanceScore, 0) / unique.length).toFixed(2);
+      // ✅ Calculate stats with multiple safety checks
+      if (Array.isArray(unique) && unique.length > 0) {
+        const validScores = unique.filter(emp => {
+          const score = emp?.performanceScore;
+          return score != null && !isNaN(parseFloat(score));
+        });
+
+        const avgScore = validScores.length > 0
+          ? (validScores.reduce((sum, emp) => {
+              const score = parseFloat(emp?.performanceScore ?? 0);
+              return sum + (isNaN(score) ? 0 : score);
+            }, 0) / validScores.length).toFixed(2)
+          : '0.00';
+
         setStats({
           totalEmployees: unique.length,
           totalUploaded: unique.length,
-          avgScore: avgScore,
+          avgScore: parseFloat(avgScore) ?? 0,
+        });
+      } else {
+        setStats({
+          totalEmployees: 0,
+          totalUploaded: 0,
+          avgScore: 0,
         });
       }
     } catch (err) {
-      console.error('Error fetching employees:', err);
+      console.error('❌ Error fetching employees:', err);
       setUploadMessage('❌ Error loading employee data');
+      // ✅ Reset to safe defaults on error
+      setAllEmployees([]);
+      setTopPerformers([]);
+      setStats({ totalEmployees: 0, totalUploaded: 0, avgScore: 0 });
     } finally {
       setLoading(false);
     }
@@ -185,14 +230,18 @@ function ManagerDashboard() {
               </div>
             </form>
 
-            {/* File Info */}
+            {/* File Info - with safe size handling */}
             {selectedFile && (
               <div className="file-info">
                 <div className="file-details">
                   <span className="file-icon">📄</span>
                   <div>
-                    <p className="file-name">{selectedFile.name}</p>
-                    <p className="file-size">{(selectedFile.size / 1024).toFixed(2)} KB</p>
+                    <p className="file-name">{selectedFile?.name ?? 'Unknown file'}</p>
+                    <p className="file-size">
+                      {selectedFile?.size && typeof selectedFile.size === 'number'
+                        ? (selectedFile.size / 1024).toFixed(2)
+                        : '0.00'} KB
+                    </p>
                   </div>
                 </div>
               </div>
@@ -241,56 +290,82 @@ function ManagerDashboard() {
 
         {/* Results Section */}
         <div className="results-section">
-          {/* Stats */}
+          {/* Stats - with safe property access */}
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-value">{stats.totalEmployees}</div>
+              <div className="stat-value">{stats?.totalEmployees ?? 0}</div>
               <div className="stat-label">Total Employees</div>
             </div>
             <div className="stat-card">
-              <div className="stat-value">{stats.avgScore}</div>
+              <div className="stat-value">
+                {typeof stats?.avgScore === 'number' && !isNaN(stats.avgScore) 
+                  ? stats.avgScore 
+                  : '0.00'}
+              </div>
               <div className="stat-label">Avg Score</div>
             </div>
             <div className="stat-card">
-              <div className="stat-value">{topPerformers.length}</div>
+              <div className="stat-value">{Array.isArray(topPerformers) ? topPerformers.length : 0}</div>
               <div className="stat-label">Top Performers</div>
             </div>
           </div>
 
-          {/* Top 5 Performers */}
+          {/* Top 5 Performers - with full safety checks */}
           <div className="performers-card">
             <h2>🏆 Top 5 Performers</h2>
             {loading ? (
-              <div className="loading">Loading...</div>
-            ) : topPerformers.length > 0 ? (
+              <div className="loading">⏳ Loading employees...</div>
+            ) : Array.isArray(topPerformers) && topPerformers.length > 0 ? (
               <div className="performers-list">
-                {topPerformers.map((emp, idx) => (
-                  <div key={emp._id || idx} className="performer-item">
-                    <div className="performer-rank">
-                      <span className="badge">{idx + 1}</span>
+                {topPerformers.map((emp, idx) => {
+                  // ✅ PRODUCTION-SAFE: Pre-compute all values with fallbacks
+                  if (!emp || typeof emp !== 'object') return null;
+                  
+                  const empName = emp?.name ?? 'Unknown agent';
+                  const perfScore = emp?.performanceScore;
+                  const score = perfScore != null && !isNaN(parseFloat(perfScore))
+                    ? parseFloat(perfScore).toFixed(2)
+                    : '0.00';
+                  
+                  const empDate = emp?.date;
+                  const date = empDate 
+                    ? new Date(empDate).toLocaleDateString('en-IN', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })
+                    : 'Unknown date';
+                  
+                  const empId = emp?._id ?? `unknown-${idx}`;
+                  
+                  return (
+                    <div key={empId} className="performer-item">
+                      <div className="performer-rank">
+                        <span className="badge">{idx + 1}</span>
+                      </div>
+                      <div className="performer-info">
+                        <h4>{empName}</h4>
+                        <p className="date">{date}</p>
+                      </div>
+                      <div className="performer-score">
+                        <div className="score-value">{score}</div>
+                        <div className="score-label">Score</div>
+                      </div>
                     </div>
-                    <div className="performer-info">
-                      <h4>{emp.name}</h4>
-                      <p className="date">{new Date(emp.date).toLocaleDateString()}</p>
-                    </div>
-                    <div className="performer-score">
-                      <div className="score-value">{emp.performanceScore.toFixed(2)}</div>
-                      <div className="score-label">Score</div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
-              <div className="no-data">No data. Upload a file first.</div>
+              <div className="no-data">📭 No data. Upload a file first.</div>
             )}
           </div>
 
-          {/* All Employees */}
+          {/* All Employees - with full safety checks */}
           <div className="all-employees-card">
-            <h2>📋 All Employees ({allEmployees.length})</h2>
+            <h2>📋 All Employees ({Array.isArray(allEmployees) ? allEmployees.length : 0})</h2>
             {loading ? (
-              <div className="loading">Loading...</div>
-            ) : allEmployees.length > 0 ? (
+              <div className="loading">⏳ Loading employees...</div>
+            ) : Array.isArray(allEmployees) && allEmployees.length > 0 ? (
               <div className="employees-table">
                 <div className="table-header">
                   <div className="col-rank">Rank</div>
@@ -299,25 +374,49 @@ function ManagerDashboard() {
                   <div className="col-score">Score</div>
                 </div>
                 <div className="table-body">
-                  {allEmployees.map((emp, idx) => (
-                    <div
-                      key={emp._id || idx}
-                      className={`table-row ${idx < 5 ? 'top-5' : ''}`}
-                    >
-                      <div className="col-rank">{idx + 1}</div>
-                      <div className="col-name">{emp.name}</div>
-                      <div className="col-date">{new Date(emp.date).toLocaleDateString()}</div>
-                      <div className="col-score">
-                        <span className={`score-badge ${idx < 5 ? 'gold' : ''}`}>
-                          {emp.performanceScore.toFixed(2)}
-                        </span>
+                  {allEmployees.map((emp, idx) => {
+                    // ✅ PRODUCTION-SAFE: Pre-compute all values with fallbacks before rendering
+                    if (!emp || typeof emp !== 'object') return null;
+                    
+                    const empName = emp?.name ?? 'Unknown agent';
+                    
+                    const perfScore = emp?.performanceScore;
+                    const score = perfScore != null && !isNaN(parseFloat(perfScore))
+                      ? parseFloat(perfScore).toFixed(2)
+                      : '0.00';
+                    
+                    const empDate = emp?.date;
+                    const date = empDate
+                      ? new Date(empDate).toLocaleDateString('en-IN', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })
+                      : 'Unknown date';
+                    
+                    const empId = emp?._id ?? `unknown-${idx}`;
+                    const isTopFive = idx < 5;
+                    
+                    return (
+                      <div
+                        key={empId}
+                        className={`table-row ${isTopFive ? 'top-5' : ''}`}
+                      >
+                        <div className="col-rank">{idx + 1}</div>
+                        <div className="col-name">{empName}</div>
+                        <div className="col-date">{date}</div>
+                        <div className="col-score">
+                          <span className={`score-badge ${isTopFive ? 'gold' : ''}`}>
+                            {score}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (
-              <div className="no-data">No employee data. Upload a file first.</div>
+              <div className="no-data">📭 No employee data. Upload a file first.</div>
             )}
           </div>
         </div>

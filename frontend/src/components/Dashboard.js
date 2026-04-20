@@ -13,8 +13,12 @@ function Dashboard({ topPerformers, stats, onRefresh }) {
       setLoading(true);
       try {
         const response = await api.get(`/api/v1/reports/daily?date=${selectedDate}`);
-        const employees = response.data.employees || [];
-        const sorted = employees.sort((a, b) => parseFloat(b.avgScore) - parseFloat(a.avgScore));
+        const employees = Array.isArray(response?.data?.employees) ? response.data.employees : [];
+        const sorted = employees.sort((a, b) => {
+          const aScore = parseFloat(a?.avgScore ?? 0);
+          const bScore = parseFloat(b?.avgScore ?? 0);
+          return bScore - aScore;
+        });
         setEmployeesData(sorted);
       } catch (err) {
         console.error('Error fetching data for date:', err);
@@ -27,23 +31,29 @@ function Dashboard({ topPerformers, stats, onRefresh }) {
   }, [selectedDate]);
 
   // Get top 5 performers for highlighting
-  const top5Names = new Set(employeesData.slice(0, 5).map(e => e.employeeName));
+  const top5Names = new Set((employeesData || []).slice(0, 5).map(e => e?.employeeName).filter(Boolean));
 
   // Deduplicate performers by name (keep highest score for each agent)
-  const deduplicatedPerformers = Array.from(
-    topPerformers
-      .reduce((map, performer) => {
-        const existing = map.get(performer.name);
-        if (!existing || performer.performanceScore > existing.performanceScore) {
-          map.set(performer.name, performer);
-        }
-        return map;
-      }, new Map())
-      .values()
-  ).sort((a, b) => b.performanceScore - a.performanceScore);
+  const deduplicatedPerformers = Array.isArray(topPerformers) 
+    ? Array.from(
+        (topPerformers || [])
+          .filter(p => p != null) // Filter out null/undefined
+          .reduce((map, performer) => {
+            const name = performer?.name;
+            if (!name) return map; // Skip if no name
+            const existing = map.get(name);
+            const perfScore = parseFloat(performer?.performanceScore ?? 0);
+            if (!existing || perfScore > parseFloat(existing?.performanceScore ?? 0)) {
+              map.set(name, performer);
+            }
+            return map;
+          }, new Map())
+          .values()
+      ).sort((a, b) => parseFloat(b?.performanceScore ?? 0) - parseFloat(a?.performanceScore ?? 0))
+    : [];
 
   // Prepare data for pie chart (ALL unique performers)
-  const allPerformersForPie = deduplicatedPerformers;
+  const allPerformersForPie = deduplicatedPerformers || [];
   const pieColors = [
     'rgba(255, 107, 107, 0.8)',
     'rgba(255, 193, 7, 0.8)',
@@ -70,29 +80,29 @@ function Dashboard({ topPerformers, stats, onRefresh }) {
   ];
   
   const pieData = {
-    labels: allPerformersForPie.map(p => p.name),
+    labels: (allPerformersForPie ?? []).map(p => p?.name ?? 'Unknown'),
     datasets: [
       {
-        data: allPerformersForPie.map(p => p.performanceScore),
-        backgroundColor: allPerformersForPie.map((_, idx) => pieColors[idx % pieColors.length]),
-        borderColor: allPerformersForPie.map((_, idx) => pieBorderColors[idx % pieBorderColors.length]),
+        data: (allPerformersForPie ?? []).map(p => parseFloat(p?.performanceScore ?? 0)),
+        backgroundColor: (allPerformersForPie ?? []).map((_, idx) => pieColors[idx % pieColors.length]),
+        borderColor: (allPerformersForPie ?? []).map((_, idx) => pieBorderColors[idx % pieBorderColors.length]),
         borderWidth: 2,
       },
     ],
   };
 
   // Prepare data for bar chart (all unique performers with color differentiation)
-  const allPerformers = deduplicatedPerformers;
+  const allPerformers = deduplicatedPerformers || [];
   const barData = {
-    labels: allPerformers.map(p => p.name),
+    labels: (allPerformers ?? []).map(p => p?.name ?? 'Unknown'),
     datasets: [
       {
         label: 'Performance Score',
-        data: allPerformers.map(p => p.performanceScore),
-        backgroundColor: allPerformers.map((p, idx) => 
+        data: (allPerformers ?? []).map(p => parseFloat(p?.performanceScore ?? 0)),
+        backgroundColor: (allPerformers ?? []).map((p, idx) => 
           idx < 5 ? 'rgba(102, 126, 234, 0.9)' : 'rgba(102, 126, 234, 0.5)'
         ),
-        borderColor: allPerformers.map((p, idx) => 
+        borderColor: (allPerformers ?? []).map((p, idx) => 
           idx < 5 ? 'rgba(102, 126, 234, 1)' : 'rgba(102, 126, 234, 0.7)'
         ),
         borderWidth: 2,

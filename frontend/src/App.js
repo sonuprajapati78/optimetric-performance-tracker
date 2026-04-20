@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import ErrorBoundary from './components/ErrorBoundary';
 import Header from './components/Header';
 import ManagerDashboard from './components/ManagerDashboard';
 import Login from './components/Login';
@@ -35,14 +36,20 @@ function App() {
 
   // If not logged in, show login page
   if (!user) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <ErrorBoundary>
+        <Login onLoginSuccess={handleLoginSuccess} />
+      </ErrorBoundary>
+    );
   }
 
   return (
-    <div className="app">
-      <Header user={user} onLogout={logout} />
-      <ManagerDashboard />
-    </div>
+    <ErrorBoundary>
+      <div className="app">
+        <Header user={user} onLogout={logout} />
+        <ManagerDashboard />
+      </div>
+    </ErrorBoundary>
   );
 }
 
