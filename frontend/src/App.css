@@ -1,0 +1,12 @@
+.app {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667ee6 0%, #764ba2 100%);
+  display: flex;
+  flex-direction: column;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+}
