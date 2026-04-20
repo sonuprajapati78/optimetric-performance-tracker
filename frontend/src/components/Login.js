@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import { API_BASE_URL } from '../config/api';
 import './Login.css';
 
 function Login({ onLoginSuccess }) {
@@ -12,6 +13,15 @@ function Login({ onLoginSuccess }) {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState('');
+
+  // ✅ PRODUCTION-SAFE: Show API configuration on mount for mobile debugging
+  useEffect(() => {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const info = `${isMobile ? '📱 Mobile' : '💻 Desktop'} | API: ${API_BASE_URL}`;
+    setDebugInfo(info);
+    console.log('🔧 Login Component:', info);
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -23,19 +33,68 @@ function Login({ onLoginSuccess }) {
     setError('');
     setLoading(true);
 
+    // ✅ PRODUCTION-LEVEL: Validate input before sending
+    if (!formData.email?.trim()) {
+      setError('❌ Please enter your email');
+      setLoading(false);
+      return;
+    }
+    if (!formData.password?.trim()) {
+      setError('❌ Please enter your password');
+      setLoading(false);
+      return;
+    }
+    if (!formData.email.includes('@')) {
+      setError('❌ Please enter a valid email address');
+      setLoading(false);
+      return;
+    }
+
     try {
+      console.log('🔐 Login attempt:', {
+        email: formData.email.trim().toLowerCase(),
+        apiUrl: API_BASE_URL,
+        userAgent: navigator.userAgent.substring(0, 50),
+      });
+
       const response = await api.post('/api/v1/auth/login', {
-        email: formData.email,
+        email: formData.email.trim().toLowerCase(),
         password: formData.password,
       });
 
-      if (response.data.token) {
+      if (response.data.token && response.data.employee) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.employee));
+        console.log('✅ Login successful:', response.data.employee.name);
         onLoginSuccess(response.data.employee);
+      } else {
+        setError('❌ Invalid server response. Please try again.');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed');
+      const errorMsg = err.response?.data?.error || err.response?.data?.message;
+      const status = err.response?.status;
+      
+      console.error('❌ Login failed:', {
+        status,
+        message: err.message,
+        errorMsg,
+        apiUrl: API_BASE_URL,
+      });
+
+      // ✅ PRODUCTION-SAFE: Detailed error messages for mobile
+      if (status === 401) {
+        setError('❌ Invalid email or password\n\n💡 Demo: admin@test.com / admin123');
+      } else if (status === 400) {
+        setError(`❌ ${errorMsg || 'Please check your email and password'}`);
+      } else if (status === 409) {
+        setError(`❌ ${errorMsg || 'Account already exists'}`);
+      } else if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+        setError('❌ Request timeout. Check your internet connection and try again.');
+      } else if (!err.response) {
+        setError(`❌ Cannot connect to server at: ${API_BASE_URL}\n\nCheck your internet connection.`);
+      } else {
+        setError(`❌ ${errorMsg || 'Login failed. Please try again.'}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -46,21 +105,83 @@ function Login({ onLoginSuccess }) {
     setError('');
     setLoading(true);
 
+    // ✅ PRODUCTION-LEVEL: Validate all inputs
+    if (!formData.name?.trim()) {
+      setError('❌ Please enter your full name');
+      setLoading(false);
+      return;
+    }
+    if (!formData.email?.trim()) {
+      setError('❌ Please enter your email');
+      setLoading(false);
+      return;
+    }
+    if (!formData.email.includes('@')) {
+      setError('❌ Please enter a valid email address');
+      setLoading(false);
+      return;
+    }
+    if (!formData.password?.trim()) {
+      setError('❌ Please enter your password');
+      setLoading(false);
+      return;
+    }
+    if (formData.password.length < 6) {
+      setError('❌ Password must be at least 6 characters');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await api.post('/api/v1/auth/register', {
-        email: formData.email,
-        password: formData.password,
-        name: formData.name,
-        department: formData.department,
+      console.log('📝 Registration attempt:', {
+        email: formData.email.trim().toLowerCase(),
+        apiUrl: API_BASE_URL,
       });
 
-      if (response.data.token) {
+      const response = await api.post('/api/v1/auth/register', {
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+        name: formData.name.trim(),
+        department: formData.department || 'Sales',
+      });
+
+      if (response.data.token && response.data.employee) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.employee));
+        console.log('✅ Registration successful:', response.data.employee.name);
         onLoginSuccess(response.data.employee);
+      } else {
+        setError('❌ Invalid server response. Please try again.');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Registration failed');
+      const errorMsg = err.response?.data?.error || err.response?.data?.message;
+      const status = err.response?.status;
+      
+      console.error('❌ Registration failed:', {
+        status,
+        message: err.message,
+        errorMsg,
+        apiUrl: API_BASE_URL,
+      });
+
+      // ✅ PRODUCTION-SAFE: Detailed error messages for mobile
+      if (status === 409) {
+        setError(`❌ ${errorMsg || 'Email or name already registered. Please login instead.'}`);
+      } else if (status === 400) {
+        setError(`❌ ${errorMsg || 'Please check your inputs'}`);
+      } else if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+        setError('❌ Request timeout. Check your internet connection and try again.');
+      } else if (!err.response) {
+        setError(`❌ Cannot connect to server at: ${API_BASE_URL}`);
+      } else {
+        setError(`❌ ${errorMsg || 'Registration failed. Please try again.'}`);
+      }
+      
+      console.error('❌ Registration error:', {
+        status: err.response?.status,
+        message: err.message,
+        errorMsg: errorMsg,
+      }); // ✅ Debug log
     } finally {
       setLoading(false);
     }
