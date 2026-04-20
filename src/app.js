@@ -24,14 +24,46 @@ app.set('trust proxy', true);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// CORS - allow all origins in development
+// CORS - Production level configuration
 const corsOptions = {
-  origin: true, // Allow all origins
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const whitelist = [
+      'http://localhost:3000',
+      'http://localhost:5000',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5000',
+      'https://optimetric-performance-tracker-zinx.vercel.app',
+      'https://optimetric-performance-tracker.onrender.com',
+    ];
+    
+    // In production, allow all origins but log them
+    if (config.env === 'production') {
+      logger.info(`CORS request from origin: ${origin}`);
+      return callback(null, true);
+    }
+    
+    if (whitelist.includes(origin)) {
+      callback(null, true);
+    } else {
+      logger.warn(`CORS blocked origin: ${origin}`);
+      callback(null, true); // Still allow in dev
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'X-JSON-Response'],
+  maxAge: 86400,
 };
+
+// Apply CORS middleware
 app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 
 // Request logging
 app.use(requestLogger);

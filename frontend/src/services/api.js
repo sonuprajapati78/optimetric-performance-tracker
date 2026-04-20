@@ -1,13 +1,18 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+console.log('🌐 API Service initialized');
+console.log('   Base URL:', API_BASE_URL);
+console.log('   Environment:', process.env.NODE_ENV);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
   },
+  withCredentials: true,
 });
 
 // Request interceptor

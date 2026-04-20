@@ -100,27 +100,32 @@ function Login({ onLoginSuccess }) {
 
         {error && <div className="alert alert-error">{error}</div>}
 
-        <form onSubmit={isLogin ? handleLogin : handleRegister} className="login-form">
+        <form onSubmit={isLogin ? handleLogin : handleRegister} className="login-form" noValidate>
           {!isLogin && (
             <>
               <div className="form-group">
-                <label>Full Name *</label>
+                <label htmlFor="name-input">Full Name *</label>
                 <input
+                  id="name-input"
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
                   placeholder="Your full name"
                   required
+                  aria-required="true"
+                  aria-label="Full Name input field"
                 />
               </div>
 
               <div className="form-group">
-                <label>Department</label>
+                <label htmlFor="department-select">Department</label>
                 <select
+                  id="department-select"
                   name="department"
                   value={formData.department}
                   onChange={handleChange}
+                  aria-label="Department selection dropdown"
                 >
                   <option value="">Choose Department</option>
                   <option value="Sales">Sales</option>
@@ -134,20 +139,24 @@ function Login({ onLoginSuccess }) {
           )}
 
           <div className="form-group">
-            <label>Email *</label>
+            <label htmlFor="email-input">Email *</label>
             <input
+              id="email-input"
               type="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
               placeholder="your@email.com"
               required
+              aria-required="true"
+              aria-label="Email address input field"
             />
           </div>
 
           <div className="form-group">
-            <label>Password *</label>
+            <label htmlFor="password-input">Password *</label>
             <input
+              id="password-input"
               type="password"
               name="password"
               value={formData.password}
@@ -155,6 +164,8 @@ function Login({ onLoginSuccess }) {
               placeholder="Min 6 characters"
               minLength="6"
               required
+              aria-required="true"
+              aria-label="Password input field, minimum 6 characters"
             />
           </div>
 

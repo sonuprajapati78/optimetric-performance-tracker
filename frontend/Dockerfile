@@ -15,7 +15,7 @@ FROM base AS builder
 COPY package*.json ./
 RUN npm ci
 COPY . .
-ENV REACT_APP_API_URL=http://localhost:5000
+ENV REACT_APP_API_URL=https://optimetric-performance-tracker.onrender.com
 RUN npm run build
 
 # Production stage - serve
