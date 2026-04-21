@@ -54,8 +54,9 @@ const agentSchema = new mongoose.Schema(
 );
 
 // Indexes for efficient querying
-// Compound index for name and date queries
-agentSchema.index({ name: 1, date: -1 });
+// Compound unique index for name and date (day) to prevent duplicates
+agentSchema.index({ name: 1, date: 1 }, { unique: true });
+// (Optional) For queries: agentSchema.index({ name: 1, date: -1 });
 
 // Index for performance score leaderboard queries
 agentSchema.index({ performanceScore: -1, date: -1 });

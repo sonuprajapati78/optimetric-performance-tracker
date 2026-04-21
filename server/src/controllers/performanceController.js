@@ -17,17 +17,21 @@ exports.uploadPerformance = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'No file uploaded');
   }
 
+  // Path normalization for cross-platform compatibility
+  const uploadPath = path.join(path.dirname(req.file.path), path.basename(req.file.path));
   const ext = path.extname(req.file.originalname);
   if (!ALLOWED_FILE_EXTENSIONS.includes(ext)) {
     // Clean up uploaded file on validation failure
-    fs.unlink(req.file.path, (err) => {
-      if (err) logger.warn(`Failed to delete file: ${req.file.path}`);
+    fs.unlink(uploadPath, (err) => {
+      if (err) logger.warn(`Failed to delete file: ${uploadPath}`);
     });
     throw new ApiError(400, `Invalid file type. Only ${ALLOWED_FILE_EXTENSIONS.join(', ')} allowed.`);
   }
 
   try {
-    const workbook = xlsx.readFile(req.file.path);
+    // Log the file path for debugging
+    console.log('Uploaded file path:', uploadPath);
+    const workbook = xlsx.readFile(uploadPath);
     if (!workbook.SheetNames.length) {
       throw new ApiError(400, 'File does not contain any sheets');
     }
@@ -39,8 +43,25 @@ exports.uploadPerformance = asyncHandler(async (req, res) => {
       throw new ApiError(400, 'File contains no data rows');
     }
 
-    const agents = [];
+    // Column validation
+    const requiredColumns = [
+      'Agent Name',
+      'Total Talk Time (hh:mm:ss)',
+      'Total Logged In Time (hh:mm:ss)',
+      'Total Break Duration (hh:mm:ss)'
+    ];
+    const fileColumns = Object.keys(rows[0] || {});
+    const missingColumns = requiredColumns.filter(col => !fileColumns.includes(col));
+    if (missingColumns.length > 0) {
+      throw new ApiError(400, `Missing required columns: ${missingColumns.join(', ')}`);
+    }
+
     const errors = [];
+    let successCount = 0;
+
+    // Normalize date to only yyyy-mm-dd (ignore time)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index];
@@ -57,41 +78,49 @@ exports.uploadPerformance = asyncHandler(async (req, res) => {
         const breakTime = convertToSeconds(row['Total Break Duration (hh:mm:ss)']);
         const performanceScore = calculateScore(talkTime, loggedInTime, breakTime);
 
-        agents.push({
-          name,
-          date: new Date(),
-          talkTime,
-          loggedInTime,
-          breakTime,
-          performanceScore,
-        });
+        // Upsert logic: findOneAndUpdate with { name, date }
+        await Agent.findOneAndUpdate(
+          { name, date: { $gte: today, $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000) } },
+          {
+            name,
+            date: today,
+            talkTime,
+            loggedInTime,
+            breakTime,
+            performanceScore,
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+        successCount++;
       } catch (err) {
         errors.push({ row: index + 2, error: err.message });
+        console.error('Detailed Error (row):', err);
       }
     }
 
-    if (agents.length === 0) {
+    if (successCount === 0) {
       throw new ApiError(400, 'No valid agent data found in file', { errors });
     }
 
-    const result = await Agent.insertMany(agents);
     logger.info(`Performance data uploaded`, {
-      count: agents.length,
+      count: successCount,
       fileName: req.file.originalname,
     });
 
     res.status(201).json({
       message: 'Performance data uploaded successfully',
-      count: agents.length,
+      count: successCount,
       ...(errors.length > 0 && { skipped: errors.length, errors }),
     });
   } catch (err) {
+    // Detailed error logging for Render
+    console.error('Detailed Error (catch):', err);
     if (err instanceof ApiError) throw err;
     throw new ApiError(500, 'Error processing file', { error: err.message });
   } finally {
     // Clean up uploaded file
-    fs.unlink(req.file.path, (err) => {
-      if (err) logger.warn(`Failed to delete file: ${req.file.path}`);
+    fs.unlink(uploadPath, (err) => {
+      if (err) logger.warn(`Failed to delete file: ${uploadPath}`);
     });
   }
 });
