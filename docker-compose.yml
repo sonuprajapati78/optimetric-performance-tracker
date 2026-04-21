@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # MongoDB Database Service
+  mongodb:
+    image: mongo:7.0-alpine
+    container_name: perf-tracker-db
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: performance_tracker
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - app-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API Service
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      target: development
+    container_name: perf-tracker-api
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=development
+      - PORT=5000
+      - MONGO_URI=mongodb://admin:admin123@mongodb:27017/performance_tracker?authSource=admin
+      - JWT_SECRET=your_jwt_secret_key_here
+      - CORS_ORIGIN=http://localhost:3000
+    volumes:
+      - ./server/src:/app/src
+      - ./server/uploads:/app/uploads
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - app-network
+    command: npm run dev
+
+  # Frontend UI Service
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      target: development
+    container_name: perf-tracker-ui
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://server:5000
+      - REACT_APP_ENV=development
+    volumes:
+      - ./client/src:/app/src
+      - ./client/public:/app/public
+    depends_on:
+      - server
+    networks:
+      - app-network
+    command: npm start
+
+volumes:
+  mongodb_data:
+
+networks:
+  app-network:
+    driver: bridge
